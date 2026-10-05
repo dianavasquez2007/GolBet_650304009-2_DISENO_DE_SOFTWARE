@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace GolBet.Web.Controllers
 
 {
-
     public class MatchesController : Controller
 
     {
