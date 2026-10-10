@@ -5,6 +5,8 @@ using GolBet.Services.Implementations;
 using GolBet.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Authorization;
+using GolBet.Repositories.Data;
 
 
 namespace GolBet.Web.Controllers
@@ -65,8 +67,14 @@ namespace GolBet.Web.Controllers
         }
 
 
-
         // GET /Matches/Create 
+
+        // El atributo va sobre las CINCO acciones de escritura (GET y POST incluidos):
+        // Create (GET), Create (POST), Edit (GET), Edit (POST), Deactivate.
+        // Ejemplo aplicado:
+
+        [Authorize(Roles = DbSeeder.AdminRole)]
+    
 
         public async Task<IActionResult> Create()
 
@@ -125,13 +133,11 @@ namespace GolBet.Web.Controllers
         }
 
 
-
         // GET /Matches/Edit/5  y  POST /Matches/Edit  siguen el mismo molde 
 
         // (con GetForEditAsync y UpdateAsync); 
 
         // POST /Matches/Deactivate/5 es idéntico al de Teams. 
-
 
 
         private async Task LoadTeamsAsync()
@@ -143,7 +149,6 @@ namespace GolBet.Web.Controllers
             ViewBag.Teams = new SelectList(teams, "Id", "Name");
 
         }
-
 
 
     }
