@@ -6,7 +6,7 @@ namespace GolBet.Services.Interfaces
 {
     public interface IMatchService
     {
-        /// Se modifica
+        /// Se modi
         Task<IEnumerable<MatchDto>> GetAllMatchesAsync(MatchStatus? status = null, string? search = null);
         Task<MatchDetailDto?> GetDetailAsync(int id);
         Task<MatchFormDto?> GetForEditAsync(int id);
