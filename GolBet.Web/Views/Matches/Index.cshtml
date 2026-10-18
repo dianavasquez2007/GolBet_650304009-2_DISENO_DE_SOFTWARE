@@ -20,14 +20,14 @@
 
 <!-- Formulario de búsqueda -->
 <form method="get" asp-action="Index" class="mb-4">
-    <!-- Mantiene el filtro de estado si existe -->
+   
     @if (ViewBag.CurrentStatus != null)
     {
         <input type="hidden" name="status" value="@ViewBag.CurrentStatus" />
     }
 
     <div class="input-group">
-        <!-- El valor se mantiene usando ViewBag.CurrentSearch -->
+        
         <input type="text" name="search" class="form-control" placeholder="Buscar por equipo..." value="@ViewBag.CurrentSearch" />
         <button type="submit" class="btn btn-primary">Buscar</button>
     </div>

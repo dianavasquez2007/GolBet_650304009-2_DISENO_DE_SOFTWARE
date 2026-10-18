@@ -22,7 +22,7 @@ public class MatchRepository : GenericRepository<Match>, IMatchRepository
             query = query.Where(m => m.Status == status.Value);
         }
 
-        // Nuevo filtro de composición para el buscador
+        // filtro de composición para el buscador
         if (!string.IsNullOrWhiteSpace(search))
         {
             var lowerSearch = search.ToLower();

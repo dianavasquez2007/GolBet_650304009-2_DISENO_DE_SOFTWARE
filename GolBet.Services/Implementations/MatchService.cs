@@ -20,6 +20,8 @@ namespace GolBet.Services.Implementations
             _mapper = mapper;
         }
 
+        
+        /// Se modifica
         public async Task<IEnumerable<MatchDto>> GetAllMatchesAsync(MatchStatus? status = null, string? search = null)
         {
             var matches = await _matchRepository.GetAllWithTeamsAsync(status, search);

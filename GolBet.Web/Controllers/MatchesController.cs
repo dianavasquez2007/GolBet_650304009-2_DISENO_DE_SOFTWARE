@@ -38,11 +38,10 @@ namespace GolBet.Web.Controllers
 
         public async Task<IActionResult> Index(MatchStatus? status, string? search)
         {
-            // El patrón ViewBag aplicado al texto de búsqueda para conservar el valor
+           
             ViewBag.CurrentStatus = status;
             ViewBag.CurrentSearch = search;
 
-            // Pasamos ambos parámetros al servicio
             var matches = await _matchService.GetAllMatchesAsync(status, search);
             return View(matches);
         }
