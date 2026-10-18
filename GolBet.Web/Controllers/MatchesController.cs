@@ -15,7 +15,6 @@ namespace GolBet.Web.Controllers
     public class MatchesController : Controller
 
     {
-
         private readonly IMatchService _matchService;
 
         private readonly ITeamService _teamService;
