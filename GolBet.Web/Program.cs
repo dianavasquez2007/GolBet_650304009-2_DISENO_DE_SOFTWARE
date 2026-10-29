@@ -11,16 +11,12 @@ using Microsoft.EntityFrameworkCore;
 
 
 var culture = new CultureInfo("es-CO");
+culture.NumberFormat = (NumberFormatInfo)CultureInfo.InvariantCulture.NumberFormat.Clone();
+culture.NumberFormat.NumberGroupSeparator = "";
 
 CultureInfo.DefaultThreadCurrentCulture = culture;
-
 CultureInfo.DefaultThreadCurrentUICulture = culture;
-
-
-
 var builder = WebApplication.CreateBuilder(args);
-
-
 
 builder.Services.AddControllersWithViews();
 
@@ -59,7 +55,11 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 
 builder.Services.AddScoped<IMatchRepository, MatchRepository>();
 
+builder.Services.AddScoped<IBetRepository, BetRepository>();
+
 builder.Services.AddScoped<ITeamService, TeamService>();
+
+builder.Services.AddScoped<IBetService, BetService>();
 
 
 
