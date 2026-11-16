@@ -6,23 +6,26 @@ using GolBet.Services.DTOs;
 using GolBet.Services.Helpers;
 using GolBet.Services.Interfaces;
 
-
 namespace GolBet.Services.Implementations
 {
     public class MatchService : IMatchService
     {
         private readonly IMatchRepository _matchRepository;
+        private readonly IBetRepository _betRepository;
         private readonly IMapper _mapper;
 
-        public MatchService(IMatchRepository matchRepository, IMapper mapper)
+        public MatchService(
+            IMatchRepository matchRepository,
+            IBetRepository betRepository,
+            IMapper mapper)
         {
             _matchRepository = matchRepository;
+            _betRepository = betRepository;
             _mapper = mapper;
         }
 
-        
-        /// Se modifica 
-        public async Task<IEnumerable<MatchDto>> GetAllMatchesAsync(MatchStatus? status = null, string? search = null)
+        public async Task<IEnumerable<MatchDto>> GetBoardAsync(
+            MatchStatus? status = null, string? search = null)
         {
             var matches = await _matchRepository.GetAllWithTeamsAsync(status, search);
             return _mapper.Map<IEnumerable<MatchDto>>(matches);
@@ -34,14 +37,13 @@ namespace GolBet.Services.Implementations
             return match is null ? null : _mapper.Map<MatchDetailDto>(match);
         }
 
-
         public async Task<MatchFormDto?> GetForEditAsync(int id)
         {
             var match = await _matchRepository.GetByIdAsync(id);
             if (match is null) return null;
 
             var dto = _mapper.Map<MatchFormDto>(match);
-            dto.Date = dto.Date.ToColombiaTime();        // UTC (DB) -> local (form)
+            dto.Date = dto.Date.ToColombiaTime();
             return dto;
         }
 
@@ -50,7 +52,7 @@ namespace GolBet.Services.Implementations
             ValidateBusinessRules(dto);
 
             var match = _mapper.Map<Match>(dto);
-            match.Date = dto.Date.ToUtcFromColombia();   // local (form) -> UTC (DB)
+            match.Date = dto.Date.ToUtcFromColombia();
             await _matchRepository.AddAsync(match);
         }
 
@@ -69,7 +71,89 @@ namespace GolBet.Services.Implementations
         public async Task DeactivateAsync(int id)
             => await _matchRepository.DeactivateAsync(id);
 
-        // ---- Business rules (Guía, regla #1 y afines) ----
+        // Iniciar partido
+        public async Task StartMatchAsync(int id)
+        {
+            var match = await _matchRepository.GetByIdAsync(id)
+                ?? throw new KeyNotFoundException($"Match {id} not found.");
+
+            if (match.Status != MatchStatus.Scheduled)
+                throw new InvalidOperationException(
+                    "Solo un partido programado puede iniciarse.");
+
+            match.Status = MatchStatus.InProgress;
+
+            await _matchRepository.UpdateAsync(match);
+        }
+
+        // Cerrar partido y resolver apuestas
+        public async Task<ResolutionSummaryDto> CloseMatchAsync(
+            MatchResultFormDto dto)
+        {
+            var match = await _matchRepository.GetByIdAsync(dto.MatchId)
+                ?? throw new KeyNotFoundException(
+                    $"Match {dto.MatchId} not found.");
+
+            // Validar estado del partido
+            if (match.Status == MatchStatus.Finished)
+                throw new InvalidOperationException(
+                    "Este partido ya fue cerrado y sus apuestas resueltas.");
+
+            if (match.Status != MatchStatus.InProgress)
+                throw new InvalidOperationException(
+                    "El partido debe estar «En juego» para cerrarse. Inícialo primero.");
+
+            // 1. Registrar resultado final
+            match.HomeGoals = dto.HomeGoals;
+            match.AwayGoals = dto.AwayGoals;
+            match.Status = MatchStatus.Finished;
+
+            // 2. Determinar apuesta ganadora
+            var winningPick = GetWinningPick(
+                dto.HomeGoals, dto.AwayGoals);
+
+            // 3. Obtener apuestas pendientes
+            var pendingBets =
+                await _betRepository.GetPendingByMatchAsync(match.Id);
+
+            var summary = new ResolutionSummaryDto
+            {
+                ResolvedBets = pendingBets.Count
+            };
+
+            foreach (var bet in pendingBets)
+            {
+                if (bet.Pick == winningPick)
+                {
+                    bet.Status = BetStatus.Won;
+
+                    var payout = bet.Amount * bet.OddsAtPlacement;
+
+                    bet.User.Balance += payout;
+
+                    summary.WonBets++;
+                    summary.TotalPaid += payout;
+                }
+                else
+                {
+                    bet.Status = BetStatus.Lost;
+                }
+            }
+
+            // 4. Guardar los cambios
+            await _matchRepository.UpdateAsync(match);
+
+            return summary;
+        }
+
+        // Determinar el resultado ganador
+        private static BetPick GetWinningPick(
+            int homeGoals, int awayGoals)
+            => homeGoals > awayGoals ? BetPick.Home
+             : homeGoals < awayGoals ? BetPick.Away
+             : BetPick.Draw;
+
+        // Validaciones de negocio
         private static void ValidateBusinessRules(MatchFormDto dto)
         {
             if (dto.HomeTeamId == dto.AwayTeamId)
@@ -80,7 +164,5 @@ namespace GolBet.Services.Implementations
                 throw new InvalidOperationException(
                     "La fecha del partido debe ser futura.");
         }
-
-
     }
 }

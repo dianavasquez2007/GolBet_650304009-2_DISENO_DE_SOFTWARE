@@ -8,147 +8,156 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Authorization;
 using GolBet.Repositories.Data;
 
-
 namespace GolBet.Web.Controllers
-
 {
     public class MatchesController : Controller
-
     {
         private readonly IMatchService _matchService;
-
         private readonly ITeamService _teamService;
 
-        public MatchesController(IMatchService matchService, ITeamService teamService)
-
+        public MatchesController(
+            IMatchService matchService,
+            ITeamService teamService)
         {
-
             _matchService = matchService;
-
             _teamService = teamService;
-
         }
 
+        // GET /Matches
+        // GET /Matches?status=Scheduled
 
-
-        // GET /Matches            -> all matches 
-
-        // GET /Matches?status=Scheduled -> filtered board 
-
-        public async Task<IActionResult> Index(MatchStatus? status, string? search)
+        public async Task<IActionResult> Index(
+            MatchStatus? status, string? search)
         {
-           
             ViewBag.CurrentStatus = status;
             ViewBag.CurrentSearch = search;
 
-            var matches = await _matchService.GetAllMatchesAsync(status, search);
-            return View(matches);
+            var board = await _matchService.GetBoardAsync(status, search);
+            return View(board);
         }
 
-
-
-        // GET /Matches/Detail/3 
+        // GET /Matches/Detail/3
 
         public async Task<IActionResult> Detail(int id)
-
         {
-
             var match = await _matchService.GetDetailAsync(id);
 
-            if (match is null) return NotFound();   // HTTP 404 
-
-
+            if (match is null) return NotFound();
 
             return View(match);
-
         }
 
-
-        // GET /Matches/Create 
-
-        // El atributo va sobre las CINCO acciones de escritura (GET y POST incluidos):
-        // Create (GET), Create (POST), Edit (GET), Edit (POST), Deactivate.
-        // Ejemplo aplicado:
-
-        [Authorize(Roles = DbSeeder.AdminRole)]
-    
-
-        public async Task<IActionResult> Create()
-
-        {
-
-            await LoadTeamsAsync();
-
-            return View(new MatchFormDto());
-
-        }
-
-
-
+        // POST /Matches/Start/5
         [HttpPost, ValidateAntiForgeryToken]
-
-        public async Task<IActionResult> Create(MatchFormDto dto)
-
+        [Authorize(Roles = DbSeeder.AdminRole)]
+        public async Task<IActionResult> Start(int id)
         {
-
-            if (!ModelState.IsValid)
-
+            try
             {
+                await _matchService.StartMatchAsync(id);
 
-                await LoadTeamsAsync();
-
-                return View(dto);
-
+                TempData["Success"] =
+                    "¡Partido en juego! Las apuestas quedaron cerradas.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
             }
 
+            return RedirectToAction(nameof(Detail), new { id });
+        }
 
+        // GET /Matches/Close/5 -> formulario del marcador
+        [Authorize(Roles = DbSeeder.AdminRole)]
+        public async Task<IActionResult> Close(int id)
+        {
+            var match = await _matchService.GetDetailAsync(id);
+
+            if (match is null) return NotFound();
+
+            ViewBag.Match = match;
+
+            return View(new MatchResultFormDto { MatchId = id });
+        }
+
+        // POST /Matches/Close -> cerrar y resolver apuestas
+        [HttpPost, ValidateAntiForgeryToken]
+        [Authorize(Roles = DbSeeder.AdminRole)]
+        public async Task<IActionResult> Close(MatchResultFormDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Match =
+                    await _matchService.GetDetailAsync(dto.MatchId);
+
+                return View(dto);
+            }
 
             try
-
             {
+                var summary = await _matchService.CloseMatchAsync(dto);
 
+                TempData["Success"] =
+                    $"Partido cerrado {dto.HomeGoals}-{dto.AwayGoals}. " +
+                    $"{summary.ResolvedBets} apuestas resueltas: " +
+                    $"{summary.WonBets} ganadas, " +
+                    $"{summary.TotalPaid:N0} FutCoins pagados.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction(
+                nameof(Detail), new { id = dto.MatchId });
+        }
+
+        // GET /Matches/Create
+
+        [Authorize(Roles = DbSeeder.AdminRole)]
+        public async Task<IActionResult> Create()
+        {
+            await LoadTeamsAsync();
+            return View(new MatchFormDto());
+        }
+
+        // POST /Matches/Create
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(MatchFormDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                await LoadTeamsAsync();
+                return View(dto);
+            }
+
+            try
+            {
                 await _matchService.CreateAsync(dto);
 
                 TempData["Success"] = "Partido creado correctamente.";
 
                 return RedirectToAction(nameof(Index));
-
             }
-
-            catch (InvalidOperationException ex)      // business rule violated 
-
+            catch (InvalidOperationException ex)
             {
-
                 ModelState.AddModelError(string.Empty, ex.Message);
 
                 await LoadTeamsAsync();
 
                 return View(dto);
-
             }
-
         }
 
-
-        // GET /Matches/Edit/5  y  POST /Matches/Edit  siguen el mismo molde 
-
-        // (con GetForEditAsync y UpdateAsync); 
-
-        // POST /Matches/Deactivate/5 es idéntico al de Teams. 
-
+        // Cargar equipos para los formularios
 
         private async Task LoadTeamsAsync()
-
         {
-
             var teams = await _teamService.GetAllAsync();
 
-            ViewBag.Teams = new SelectList(teams, "Id", "Name");
-
+            ViewBag.Teams = new SelectList(
+                teams, "Id", "Name");
         }
-
-
     }
-
 }
-
